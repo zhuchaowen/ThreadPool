@@ -29,5 +29,5 @@ public:
     // 从任务队列中取出一个任务
     Task take_task();
     // 判断任务队列是否为空
-    bool empty();
+    inline bool empty();
 };
