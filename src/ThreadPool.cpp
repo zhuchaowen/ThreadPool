@@ -3,7 +3,7 @@
 #include <chrono>
 
 const int NUMBER = 2;   // 每次创建或销毁两个线程
-const std::thread::id NOT_THREAD = std::thread::id();   // 销毁的线程id
+std::mutex cout_lock;
 
 // 确定线程池可创建的工作线程数范围并初始化
 ThreadPool::ThreadPool(int min_num, int max_num) : min_number(min_num), max_number(max_num)
@@ -16,9 +16,9 @@ ThreadPool::ThreadPool(int min_num, int max_num) : min_number(min_num), max_numb
     }
 
     try {
-        workers_id.assign(max_num, NOT_THREAD);
+        workers_thread.resize(max_num);
     } catch (const std::bad_alloc& e) {
-        std::cerr << "workers_thread memory allocation failed: " << e.what() << std::endl;
+        std::cerr << "workers_thraed memory allocation failed: " << e.what() << std::endl;
         delete task_queue;
         return;
     }
@@ -30,9 +30,10 @@ ThreadPool::ThreadPool(int min_num, int max_num) : min_number(min_num), max_numb
     shutdown = false;
 
     manager_thread = std::thread(&ThreadPool::manager, this);
+    std::cout << "create manager thread " << manager_thread.get_id() << " successed" << std::endl;
     for (int i = 0; i < min_num; ++i) {
-        std::thread worker_thread = std::thread(&ThreadPool::worker, this);
-        workers_id[i] = worker_thread.get_id();
+        workers_thread[i] = std::thread(&ThreadPool::worker, this);
+        std::cout << "create worker thread " << workers_thread[i].get_id() << " successed" << std::endl;
     }
 }
 
@@ -91,21 +92,30 @@ int ThreadPool::get_busy_number()
 // 管理线程，根据情况创建或销毁工作线程
 void ThreadPool::manager()
 {
-    const int NUMBER = 2; // 每次创建或销毁2个线程
-
     while (!shutdown) {
         // 每3秒检查一次
         std::this_thread::sleep_for(std::chrono::seconds(3));
         
         // 当前任务数比工作的线程数多时创建线程
         int queue_size = task_queue->get_task_number();
+
+        {
+            std::unique_lock<std::mutex> lock(cout_lock);
+            std::cout << "queue_size: " << queue_size << std::endl;
+            std::cout << "live_number: " << live_number << std::endl;
+            std::cout << "busy_number: " << busy_number << std::endl;
+        }
+
 		if (queue_size > live_number && live_number < max_number) {
 			int counter = 0;
             for (int i = 0; i < max_number && counter < NUMBER && live_number < max_number; ++i) {
-                std::unique_lock<std::mutex> lock(workers_id_lock);
-                if (workers_id[i] == NOT_THREAD) {
-                    std::thread worker_thread = std::thread(&ThreadPool::worker, this);
-                    workers_id[i] = worker_thread.get_id();
+                std::unique_lock<std::mutex> lock(workers_thread_lock);
+                if (!workers_thread[i].joinable()) {
+                    workers_thread[i] = std::thread(&ThreadPool::worker, this);
+                    {
+                        std::unique_lock<std::mutex> lock(cout_lock);
+                        std::cout << "create worker thread " << workers_thread[i].get_id() << " successed" << std::endl;
+                    }
                     counter++;
                     live_number++;
                 }
@@ -136,16 +146,24 @@ void ThreadPool::worker()
 
         // 需要销毁线程
         if (exit_number > 0) {
+            std::cout << "exit_number" << std::endl;
             exit_number--;
             if (live_number > min_number) {
                 live_number--;
-                thread_exit();
+                {
+                    std::unique_lock<std::mutex> lock(cout_lock);
+                    std::cout << "exit worker thread " << std::this_thread::get_id() << " successed" << std::endl;
+                }
                 return;
             }
         }
 
         if (shutdown) {
-            thread_exit();
+            std::cout << "shutdown" << std::endl;
+            {
+                std::unique_lock<std::mutex> lock(cout_lock);
+                std::cout << "exit worker thread " << std::this_thread::get_id() << " successed" << std::endl;
+            }
             return;
         }
 
@@ -153,26 +171,8 @@ void ThreadPool::worker()
 
         busy_number++;
 
-        std::cout << "thread " << std::this_thread::get_id() << " start working..." << std::endl;
         task.function(task.arg);
-        delete task.arg;
-        task.arg = nullptr;
-        std::cout << "thread " << std::this_thread::get_id() << " end working..." << std::endl;
 
 		busy_number--;
     }
 }
-
-// 销毁线程
-void ThreadPool::thread_exit()
-{
-    std::thread::id tid = std::this_thread::get_id();
-    for (int i = 0; i < max_number; ++i) {
-        std::unique_lock<std::mutex> lock(workers_id_lock);
-        if (workers_id[i] == tid) {
-            workers_id[i] = NOT_THREAD;
-            std::cout << "thread_exit() called, " << tid << " exiting..." << std::endl;
-            break;
-        }
-    }
-} 
