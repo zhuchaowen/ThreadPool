@@ -30,4 +30,6 @@ public:
     Task take_task();
     // 判断任务队列是否为空
     inline bool empty();
+    // 获得当前任务数，即队列的大小
+    inline int get_task_number();
 };

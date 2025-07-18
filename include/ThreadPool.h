@@ -1,7 +1,7 @@
 #pragma once
 #include "TaskQueue.h"
 #include <thread>
-#include <unordered_map>
+#include <vector>
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
@@ -11,7 +11,7 @@ private:
     TaskQueue* task_queue;  // 任务队列，保存待处理的任务
 
     std::thread manager_thread;    // 管理线程
-    std::unordered_map<std::thread::id, std::thread> workers_thread;   // 工作线程
+    std::vector<std::thread::id> workers_id;   // 工作线程
     int min_number; // 最小工作线程数量
     int max_number; // 最大工作线程数量
     // 以下三个变量要进行原子操作
@@ -21,19 +21,20 @@ private:
 
     bool shutdown;  // 是否关闭线程池
 
-    std::mutex workers_thread_lock; // 互斥访问工作线程
+    std::mutex task_queue_lock;     // 互斥访问任务队列
+    std::mutex workers_id_lock; // 互斥访问工作线程
     std::condition_variable empty;  // 任务队列中是否没有任务，没有就要阻塞工作线程
 public:
-    ThreadPool(int min_num, int max_num);   // 确定线程池可创建的工作线程数范围
+    ThreadPool(int min_num, int max_num);   // 确定线程池可创建的工作线程数范围并初始化
     ~ThreadPool();  // 销毁线程池
 
     // 向线程池中添加任务
     void add_task(Task task);
     void add_task(callback function, void* arg);
     // 获得存活的工作线程数
-    int get_live_number();
+    inline int get_live_number();
     // 获得忙碌的工作线程数
-    int get_busy_number();
+    inline int get_busy_number();
 private:
     // ThreadPool类内部调用的函数
     void manager(); // 管理线程
