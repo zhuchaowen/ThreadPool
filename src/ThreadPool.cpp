@@ -29,9 +29,9 @@ ThreadPool::ThreadPool(int min_num, int max_num) : min_number(min_num), max_numb
 
     shutdown = false;
 
-    manager_thread = std::thread(manager);
+    manager_thread = std::thread(&ThreadPool::manager, this);
     for (int i = 0; i < min_num; ++i) {
-        std::thread worker_thread = std::thread(worker);
+        std::thread worker_thread = std::thread(&ThreadPool::worker, this);
         workers_id[i] = worker_thread.get_id();
     }
 }
@@ -77,13 +77,13 @@ void ThreadPool::add_task(callback function, void* arg)
 }
 
 // 获得存活的工作线程数
-inline int ThreadPool::get_live_number() 
+int ThreadPool::get_live_number() 
 {
     return live_number;
 }
 
 // 获得忙碌的工作线程数
-inline int ThreadPool::get_busy_number()
+int ThreadPool::get_busy_number()
 {
     return busy_number;
 }
@@ -104,7 +104,7 @@ void ThreadPool::manager()
             for (int i = 0; i < max_number && counter < NUMBER && live_number < max_number; ++i) {
                 std::unique_lock<std::mutex> lock(workers_id_lock);
                 if (workers_id[i] == NOT_THREAD) {
-                    std::thread worker_thread = std::thread(worker);
+                    std::thread worker_thread = std::thread(&ThreadPool::worker, this);
                     workers_id[i] = worker_thread.get_id();
                     counter++;
                     live_number++;

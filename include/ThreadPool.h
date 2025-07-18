@@ -32,14 +32,12 @@ public:
     void add_task(Task task);
     void add_task(callback function, void* arg);
     // 获得存活的工作线程数
-    inline int get_live_number();
+    int get_live_number();
     // 获得忙碌的工作线程数
-    inline int get_busy_number();
+    int get_busy_number();
 private:
     // ThreadPool类内部调用的函数
     void manager(); // 管理线程
     void worker();  // 工作线程
     void thread_exit(); // 销毁线程
-    // 工作线程从任务队列中取走一个任务
-    void take_task();
 };

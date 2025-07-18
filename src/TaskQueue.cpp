@@ -39,14 +39,14 @@ Task TaskQueue::take_task()
 }
 
 // 判断任务队列是否为空
-inline bool TaskQueue::empty()
+bool TaskQueue::empty()
 {
     std::unique_lock<std::mutex> lock(task_queue_mutex);
     return task_queue.empty();
 }
 
 // 获得当前任务数，即队列的大小
-inline int TaskQueue::get_task_number()
+int TaskQueue::get_task_number()
 {
     std::unique_lock<std::mutex> lock(task_queue_mutex);
     return task_queue.size();
